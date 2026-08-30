@@ -42,13 +42,14 @@ export async function GET(req: Request) {
   const vehicleSentMap = buildVehicleSentMap(vehicleStatuses);
 
   const studentViews = buildStudentDailyViews({
-    date,
-    students,
-    bookings,
-    dailyOps,
-    vehicleSentMap,
-    attendance,
-  });
+  date,
+  students,
+  bookings,
+  dailyOps,
+  vehicleSentMap,
+  attendance,
+  vehicles,
+});
 
   const vehicleViews = buildVehicleDailyViews({ vehicles, studentViews, vehicleSentMap });
 
