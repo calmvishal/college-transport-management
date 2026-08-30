@@ -144,18 +144,36 @@ export function buildVehicleDailyViews(params: {
   const { vehicles, studentViews, vehicleSentMap } = params;
 
   return vehicles.map((vehicle) => {
-    const bookedCount = studentViews.filter((s) => s.defaultVehicleId === vehicle.vehicleId).length;
+    const bookedCount = studentViews.filter(
+      (s) =>
+        s.defaultVehicleId === vehicle.vehicleId ||
+        s.defaultVehicleId === vehicle.vehicleNumber
+    ).length;
+
     const operationalStudents = studentViews.filter(
-      (s) => s.operationalVehicleId === vehicle.vehicleId
+      (s) =>
+        s.operationalVehicleId === vehicle.vehicleId ||
+        s.operationalVehicleId === vehicle.vehicleNumber
     );
-    const present = operationalStudents.filter((s) => s.attendance === "Present").length;
+
+    const present = operationalStudents.filter(
+      (s) => s.attendance === "Present"
+    ).length;
+
     const absent = operationalStudents.filter(
-      (s) => s.attendance === "Absent - Student" || s.attendance === "Absent - Vehicle Not Sent"
+      (s) =>
+        s.attendance === "Absent - Student" ||
+        s.attendance === "Absent - Vehicle Not Sent"
     ).length;
 
     const sent = vehicleSentMap.get(vehicle.vehicleId);
+
     const status: VehicleDailyView["status"] =
-      sent === true ? "Sent" : sent === false ? "Not Sent" : "Unmarked";
+      sent === true
+        ? "Sent"
+        : sent === false
+          ? "Not Sent"
+          : "Unmarked";
 
     return {
       vehicleId: vehicle.vehicleId,
