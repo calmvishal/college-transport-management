@@ -53,10 +53,18 @@ export default function ClubbingPage() {
     load();
   }, [load]);
 
-  const candidateStudents = useMemo(
-    () => students.filter((s) => s.booked && s.operationalVehicleId === fromVehicleId),
-    [students, fromVehicleId]
-  );
+  const candidateStudents = useMemo(() => {
+    const fromVehicle = vehicles.find((v) => v.vehicleId === fromVehicleId);
+
+    if (!fromVehicle) return [];
+
+    return students.filter(
+      (s) =>
+        s.booked &&
+        (s.operationalVehicleId === fromVehicle.vehicleId ||
+          s.operationalVehicleId === fromVehicle.vehicleNumber),
+    );
+  }, [students, vehicles, fromVehicleId]);
 
   const destinationVehicle = vehicles.find((v) => v.vehicleId === toVehicleId);
 
@@ -87,7 +95,10 @@ export default function ClubbingPage() {
     });
     const data = await res.json();
     if (res.ok && data.success) {
-      showToast(`Moved ${data.movedCount} student(s) to ${destinationVehicle?.vehicleNumber}.`, "success");
+      showToast(
+        `Moved ${data.movedCount} student(s) to ${destinationVehicle?.vehicleNumber}.`,
+        "success",
+      );
       setConfirmOpen(false);
       setReason("");
       load();
@@ -103,7 +114,8 @@ export default function ClubbingPage() {
       <main className="mx-auto max-w-4xl px-4 py-8">
         <h1 className="text-xl font-bold">Student Clubbing</h1>
         <p className="text-sm text-slate-500">
-          Move booked students from a low-booking vehicle into another for a specific date.
+          Move booked students from a low-booking vehicle into another for a
+          specific date.
         </p>
 
         <div className="mt-4">
@@ -116,7 +128,9 @@ export default function ClubbingPage() {
           <div className="card mt-6 space-y-4">
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">From Vehicle</label>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  From Vehicle
+                </label>
                 <select
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
                   value={fromVehicleId}
@@ -134,7 +148,9 @@ export default function ClubbingPage() {
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">Move to Vehicle</label>
+                <label className="mb-1 block text-sm font-medium text-slate-700">
+                  Move to Vehicle
+                </label>
                 <select
                   className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
                   value={toVehicleId}
@@ -158,7 +174,10 @@ export default function ClubbingPage() {
                   <span className="text-sm font-medium text-slate-700">
                     Booked students on this vehicle ({candidateStudents.length})
                   </span>
-                  <button className="text-sm text-brand-600 underline" onClick={selectAll}>
+                  <button
+                    className="text-sm text-brand-600 underline"
+                    onClick={selectAll}
+                  >
                     Select all
                   </button>
                 </div>
@@ -189,7 +208,10 @@ export default function ClubbingPage() {
                       ))}
                       {candidateStudents.length === 0 && (
                         <tr>
-                          <td colSpan={3} className="text-center text-slate-400">
+                          <td
+                            colSpan={3}
+                            className="text-center text-slate-400"
+                          >
                             No booked students on this vehicle for {date}.
                           </td>
                         </tr>
@@ -201,7 +223,9 @@ export default function ClubbingPage() {
             )}
 
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Reason (optional)</label>
+              <label className="mb-1 block text-sm font-medium text-slate-700">
+                Reason (optional)
+              </label>
               <input
                 type="text"
                 value={reason}
@@ -216,7 +240,8 @@ export default function ClubbingPage() {
               disabled={selected.size === 0 || !toVehicleId}
               onClick={() => setConfirmOpen(true)}
             >
-              Club {selected.size} student(s) to {destinationVehicle?.vehicleNumber || "…"}
+              Club {selected.size} student(s) to{" "}
+              {destinationVehicle?.vehicleNumber || "…"}
             </button>
           </div>
         )}
