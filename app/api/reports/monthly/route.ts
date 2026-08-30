@@ -68,16 +68,18 @@ export async function GET(req: Request) {
     const statuses = allVehicleStatus.filter((v) => v.date === date);
     const attendance = allAttendance.filter((a) => a.date === date);
     const vehicleSentMap = buildVehicleSentMap(statuses);
+    
 
     perDate[date] = buildStudentDailyViews({
-      date,
-      students,
-      bookings,
-      dailyOps,
-      vehicleSentMap,
-      attendance,
-    });
-  }
+  date,
+  students,
+  bookings,
+  dailyOps,
+  vehicleSentMap,
+  attendance,
+  vehicles,
+});
+  
 
   // ---- Aggregate totals ----
   let totalBookings = 0;
@@ -152,16 +154,23 @@ export async function GET(req: Request) {
   );
 
   // ---- Render PDF ----
-  const doc = new PDFDocument({ size: "A4", margin: 40 });
-  const chunks: Buffer[] = [];
-  doc.on("data", (chunk) => chunks.push(chunk));
+const doc = new PDFDocument({ size: "A4", margin: 40 });
+const chunks: Uint8Array[] = [];
 
-  const vehicleNumber = (id: string) => vehicles.find((v) => v.vehicleId === id)?.vehicleNumber ?? id;
-  const studentName = (id: string) => students.find((s) => s.studentId === id)?.name ?? id;
+doc.on("data", (chunk) => chunks.push(chunk));
 
-  const pdfDone = new Promise<Buffer>((resolve) => {
-    doc.on("end", () => resolve(Buffer.concat(chunks)));
+const vehicleNumber = (id: string) =>
+  vehicles.find((v) => v.vehicleId === id)?.vehicleNumber ?? id;
+
+const studentName = (id: string) =>
+  students.find((s) => s.studentId === id)?.name ?? id;
+
+const pdfDone = new Promise<Uint8Array>((resolve) => {
+  doc.on("end", () => {
+    const buffer = Buffer.concat(chunks);
+    resolve(new Uint8Array(buffer));
   });
+});
 
   // --- Cover / Summary ---
   doc.fontSize(18).text("COLLEGE TRANSPORT ATTENDANCE REPORT", { align: "center" });
@@ -253,16 +262,20 @@ export async function GET(req: Request) {
     ]);
   }
 
-  doc.end();
-  const buffer = await pdfDone;
+ doc.end();
 
-  return new NextResponse(buffer, {
-    status: 200,
-    headers: {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `attachment; filename="transport-report-${month}.pdf"`,
-    },
-  });
+const pdfBytes = await pdfDone;
+
+const arrayBuffer = new ArrayBuffer(pdfBytes.byteLength);
+new Uint8Array(arrayBuffer).set(pdfBytes);
+
+return new NextResponse(arrayBuffer, {
+  status: 200,
+  headers: {
+    "Content-Type": "application/pdf",
+    "Content-Disposition": `attachment; filename="transport-report-${month}.pdf"`,
+  },
+});
 }
 
 function drawTableHeader(doc: PDFKit.PDFDocument, cols: string[]) {
@@ -285,4 +298,4 @@ function drawTableRow(doc: PDFKit.PDFDocument, cols: string[]) {
     doc.text(c, 40 + i * colWidth, y, { width: colWidth });
   });
   doc.moveDown(0.3);
-}
+}}
