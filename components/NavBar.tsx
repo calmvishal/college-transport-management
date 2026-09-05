@@ -12,6 +12,7 @@ const LINKS_BY_ROLE: Record<string, { href: string; label: string }[]> = {
   incharge: [
     { href: "/incharge/dashboard", label: "Daily Dashboard" },
     { href: "/incharge/clubbing", label: "Clubbing" },
+    { href: "/incharge/holidays", label: "Holidays" },
     { href: "/incharge/vehicles", label: "Vehicles" },
     { href: "/incharge/students", label: "Students" },
     { href: "/incharge/drivers", label: "Drivers" },

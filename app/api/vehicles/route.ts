@@ -21,12 +21,13 @@ export async function GET() {
 
 const createSchema = z.object({
   vehicleNumber: z.string().min(1),
-  route: z.string().min(1),
   capacity: z.number().int().positive(),
   driverId: z.string().optional().default(""),
 });
 
-/** POST /api/vehicles — add a new vehicle. */
+/** POST /api/vehicles — add a new vehicle. Route is always the incharge's
+ * own route (see the note in app/api/students/route.ts for why this is
+ * forced server-side rather than trusted from client input). */
 export async function POST(req: Request) {
   const session = await requireRole(["incharge"]);
   if (session instanceof NextResponse) return session;
@@ -42,9 +43,17 @@ export async function POST(req: Request) {
     vehicleId,
     status: "Active",
     dateAdded: new Date().toISOString().slice(0, 10),
+    route: session.user.route,
     ...parsed.data,
   });
-  await recordAudit(session.user.name || session.user.id, "CREATE", "Vehicle", vehicleId, "", JSON.stringify(parsed.data));
+  await recordAudit(
+    session.user.name || session.user.id,
+    "CREATE",
+    "Vehicle",
+    vehicleId,
+    "",
+    JSON.stringify({ ...parsed.data, route: session.user.route })
+  );
 
   return NextResponse.json({ success: true, vehicleId });
 }
@@ -52,7 +61,6 @@ export async function POST(req: Request) {
 const updateSchema = z.object({
   vehicleId: z.string().min(1),
   vehicleNumber: z.string().optional(),
-  route: z.string().optional(),
   capacity: z.number().int().positive().optional(),
   driverId: z.string().optional(),
   status: z.enum(["Active", "Inactive"]).optional(),

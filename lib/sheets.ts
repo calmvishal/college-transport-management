@@ -57,6 +57,7 @@ export const SHEET = {
   Attendance: "Attendance",
   ClubbingHistory: "ClubbingHistory",
   AuditLog: "AuditLog",
+  NonWorkingDays: "NonWorkingDays",
 } as const;
 
 export type SheetName = (typeof SHEET)[keyof typeof SHEET];
@@ -340,4 +341,51 @@ function columnLetter(colCount: number): string {
     n = Math.floor((n - 1) / 26);
   }
   return letter;
+}
+
+/** Deletes the row matched by a single column value (e.g. un-marking a
+ * non-working day). Unlike updates, deleting requires the sheet's numeric
+ * sheetId (not just its title), so this fetches spreadsheet metadata first.
+ * Returns false if no matching row was found. */
+export async function deleteRowByKey(
+  sheetName: SheetName,
+  matchColumn: string,
+  matchValue: string
+): Promise<boolean> {
+  const client = getClient();
+
+  const meta = await client.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID });
+  const sheetMeta = (meta.data.sheets || []).find((s) => s.properties?.title === sheetName);
+  const sheetId = sheetMeta?.properties?.sheetId;
+  if (sheetId === undefined || sheetId === null) return false;
+
+  const res = await client.spreadsheets.values.get({
+    spreadsheetId: SPREADSHEET_ID,
+    range: `${sheetName}!A1:ZZ`,
+  });
+  const rows = res.data.values || [];
+  if (rows.length === 0) return false;
+  const headers = rows[0];
+  const colIndex = headers.indexOf(matchColumn);
+  if (colIndex === -1) return false;
+
+  for (let i = 1; i < rows.length; i++) {
+    if ((rows[i][colIndex] || "") === matchValue) {
+      await client.spreadsheets.batchUpdate({
+        spreadsheetId: SPREADSHEET_ID,
+        requestBody: {
+          requests: [
+            {
+              deleteDimension: {
+                range: { sheetId, dimension: "ROWS", startIndex: i, endIndex: i + 1 },
+              },
+            },
+          ],
+        },
+      });
+      invalidateCache(sheetName);
+      return true;
+    }
+  }
+  return false;
 }

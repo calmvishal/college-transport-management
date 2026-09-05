@@ -4,6 +4,7 @@ import {
   appendRow,
   appendRows,
   batchReadSheets,
+  deleteRowByKey,
   findRowByCompositeKey,
   readSheet,
   updateRowByCompositeKey,
@@ -15,6 +16,7 @@ import type {
   ClubbingHistoryRecord,
   DailyOperationRecord,
   DriverRecord,
+  NonWorkingDayRecord,
   StudentRecord,
   UserRecord,
   VehicleDailyStatusRecord,
@@ -644,4 +646,42 @@ export async function getMonthlyReportBundle(): Promise<{
     attendance: sheets[SHEET.Attendance].map(mapAttendanceRow),
     clubbingHistory: sheets[SHEET.ClubbingHistory].map(mapClubbingHistoryRow),
   };
+}
+
+// ============================================================================
+// NON-WORKING DAYS (college-wide holidays — booking is blocked on these dates)
+// ============================================================================
+export async function getAllNonWorkingDays(): Promise<NonWorkingDayRecord[]> {
+  const rows = await readSheet(SHEET.NonWorkingDays);
+  return rows.map((r) => ({
+    date: r["Date"],
+    reason: r["Reason"],
+    markedBy: r["Marked By"],
+    markedAt: r["Marked At"],
+  }));
+}
+
+/** Returns the NonWorkingDay record for a date, or null if it's a normal
+ * working day. Every booking attempt checks this before creating a row. */
+export async function getNonWorkingDay(date: string): Promise<NonWorkingDayRecord | null> {
+  const all = await getAllNonWorkingDays();
+  return all.find((d) => d.date === date) || null;
+}
+
+/** Marks a date as non-working. Idempotent — marking an already-marked
+ * date just updates the reason instead of creating a duplicate row. */
+export async function addNonWorkingDay(record: NonWorkingDayRecord): Promise<void> {
+  const updated = await updateRowByKey(SHEET.NonWorkingDays, "Date", record.date, {
+    Reason: record.reason,
+    "Marked By": record.markedBy,
+    "Marked At": record.markedAt,
+  });
+  if (updated) return;
+
+  await appendRow(SHEET.NonWorkingDays, [record.date, record.reason, record.markedBy, record.markedAt]);
+}
+
+/** Un-marks a date, allowing bookings again. */
+export async function removeNonWorkingDay(date: string): Promise<boolean> {
+  return deleteRowByKey(SHEET.NonWorkingDays, "Date", date);
 }

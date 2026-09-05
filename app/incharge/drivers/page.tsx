@@ -25,7 +25,7 @@ export default function DriversPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ name: "", phone: "", route: "", vehicleId: "" });
+  const [form, setForm] = useState({ name: "", phone: "", vehicleId: "" });
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
@@ -52,7 +52,7 @@ export default function DriversPage() {
     if (res.ok) {
       showToast("Driver added.", "success");
       setShowAdd(false);
-      setForm({ name: "", phone: "", route: "", vehicleId: "" });
+      setForm({ name: "", phone: "", vehicleId: "" });
       load();
     } else {
       showToast(data.error || "Failed to add driver.", "error");
@@ -115,13 +115,6 @@ export default function DriversPage() {
               className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
               value={form.phone}
               onChange={(e) => setForm({ ...form, phone: e.target.value })}
-            />
-            <input
-              required
-              placeholder="Route"
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              value={form.route}
-              onChange={(e) => setForm({ ...form, route: e.target.value })}
             />
             <select
               className="rounded-lg border border-slate-300 px-3 py-2 text-sm"

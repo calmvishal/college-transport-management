@@ -30,7 +30,6 @@ export default function StudentsPage() {
   const [form, setForm] = useState({
     name: "",
     classCourse: "",
-    route: "",
     defaultVehicleId: "",
     contact: "",
   });
@@ -60,7 +59,7 @@ export default function StudentsPage() {
     if (res.ok) {
       showToast("Student added.", "success");
       setShowAdd(false);
-      setForm({ name: "", classCourse: "", route: "", defaultVehicleId: "", contact: "" });
+      setForm({ name: "", classCourse: "", defaultVehicleId: "", contact: "" });
       load();
     } else {
       showToast(data.error || "Failed to add student.", "error");
@@ -128,13 +127,6 @@ export default function StudentsPage() {
               className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
               value={form.classCourse}
               onChange={(e) => setForm({ ...form, classCourse: e.target.value })}
-            />
-            <input
-              required
-              placeholder="Route"
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              value={form.route}
-              onChange={(e) => setForm({ ...form, route: e.target.value })}
             />
             <select
               required

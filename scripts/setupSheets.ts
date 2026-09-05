@@ -59,6 +59,7 @@ const SHEETS: Record<string, string[]> = {
     "Reason",
   ],
   AuditLog: ["Timestamp", "Actor", "Action", "Entity", "Entity ID", "Old Value", "New Value"],
+  NonWorkingDays: ["Date", "Reason", "Marked By", "Marked At"],
 };
 
 async function main() {

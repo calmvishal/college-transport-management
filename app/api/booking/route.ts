@@ -4,6 +4,7 @@ import { requireRole } from "@/lib/apiAuth";
 import {
   createBooking,
   findExistingBooking,
+  getNonWorkingDay,
   getStudentById,
   initDailyOperation,
 } from "@/lib/repository";
@@ -28,6 +29,16 @@ export async function POST() {
   }
 
   const travelDate = nextBookableDateKey();
+
+  // A Route Incharge can mark a date as a non-working day (holiday). No
+  // student may book transport for it, regardless of vehicle status.
+  const holiday = await getNonWorkingDay(travelDate);
+  if (holiday) {
+    return NextResponse.json(
+      { error: `${travelDate} is a non-working day (${holiday.reason}). Booking is not available.` },
+      { status: 409 }
+    );
+  }
 
   const existing = await findExistingBooking(studentId, travelDate);
   if (existing) {

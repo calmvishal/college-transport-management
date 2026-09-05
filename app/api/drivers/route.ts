@@ -17,9 +17,10 @@ const createSchema = z.object({
   phone: z.string().min(1),
   licenseInfo: z.string().optional().default(""),
   vehicleId: z.string().optional().default(""),
-  route: z.string().min(1),
 });
 
+/** POST /api/drivers — route is always the incharge's own route (see the
+ * note in app/api/students/route.ts for why this is forced server-side). */
 export async function POST(req: Request) {
   const session = await requireRole(["incharge"]);
   if (session instanceof NextResponse) return session;
@@ -31,8 +32,15 @@ export async function POST(req: Request) {
   }
 
   const driverId = `DRV-${uuid().slice(0, 8).toUpperCase()}`;
-  await createDriver({ driverId, status: "Active", ...parsed.data });
-  await recordAudit(session.user.name || session.user.id, "CREATE", "Driver", driverId, "", JSON.stringify(parsed.data));
+  await createDriver({ driverId, status: "Active", route: session.user.route, ...parsed.data });
+  await recordAudit(
+    session.user.name || session.user.id,
+    "CREATE",
+    "Driver",
+    driverId,
+    "",
+    JSON.stringify({ ...parsed.data, route: session.user.route })
+  );
 
   return NextResponse.json({ success: true, driverId });
 }
@@ -43,7 +51,6 @@ const updateSchema = z.object({
   phone: z.string().optional(),
   licenseInfo: z.string().optional(),
   vehicleId: z.string().optional(),
-  route: z.string().optional(),
   status: z.enum(["Active", "Inactive"]).optional(),
 });
 

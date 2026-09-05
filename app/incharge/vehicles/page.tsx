@@ -20,7 +20,7 @@ export default function VehiclesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
-  const [form, setForm] = useState({ vehicleNumber: "", route: "", capacity: 40, driverId: "" });
+  const [form, setForm] = useState({ vehicleNumber: "", capacity: 40, driverId: "" });
   const [saving, setSaving] = useState(false);
 
   const load = useCallback(async () => {
@@ -46,7 +46,7 @@ export default function VehiclesPage() {
     if (res.ok) {
       showToast("Vehicle added.", "success");
       setShowAdd(false);
-      setForm({ vehicleNumber: "", route: "", capacity: 40, driverId: "" });
+      setForm({ vehicleNumber: "", capacity: 40, driverId: "" });
       load();
     } else {
       showToast(data.error || "Failed to add vehicle.", "error");
@@ -92,13 +92,6 @@ export default function VehiclesPage() {
               className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
               value={form.vehicleNumber}
               onChange={(e) => setForm({ ...form, vehicleNumber: e.target.value })}
-            />
-            <input
-              required
-              placeholder="Route"
-              className="rounded-lg border border-slate-300 px-3 py-2 text-sm"
-              value={form.route}
-              onChange={(e) => setForm({ ...form, route: e.target.value })}
             />
             <input
               required

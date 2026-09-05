@@ -18,12 +18,20 @@ export async function GET() {
 const createSchema = z.object({
   name: z.string().min(1),
   classCourse: z.string().min(1),
-  route: z.string().min(1),
   defaultVehicleId: z.string().min(1),
   contact: z.string().optional().default(""),
 });
 
-/** POST /api/students — add a new student. */
+/** POST /api/students — add a new student.
+ *
+ * Route is ALWAYS taken from the logged-in incharge's own session, never
+ * from client input. Previously it was a free-typed field, so a stray
+ * space or different capitalization meant the record was written to the
+ * sheet correctly but then silently excluded from every list view (which
+ * filters by exact route match) — the incharge would see "success" but
+ * the record would appear to vanish. Locking it server-side makes that
+ * class of bug impossible and also stops an incharge from accidentally
+ * (or deliberately) creating a record outside their authorized route. */
 export async function POST(req: Request) {
   const session = await requireRole(["incharge"]);
   if (session instanceof NextResponse) return session;
@@ -35,8 +43,20 @@ export async function POST(req: Request) {
   }
 
   const studentId = `STU-${uuid().slice(0, 8).toUpperCase()}`;
-  await createStudent({ studentId, status: "Active", ...parsed.data });
-  await recordAudit(session.user.name || session.user.id, "CREATE", "Student", studentId, "", JSON.stringify(parsed.data));
+  await createStudent({
+    studentId,
+    status: "Active",
+    route: session.user.route,
+    ...parsed.data,
+  });
+  await recordAudit(
+    session.user.name || session.user.id,
+    "CREATE",
+    "Student",
+    studentId,
+    "",
+    JSON.stringify({ ...parsed.data, route: session.user.route })
+  );
 
   return NextResponse.json({ success: true, studentId });
 }
@@ -45,7 +65,6 @@ const updateSchema = z.object({
   studentId: z.string().min(1),
   name: z.string().optional(),
   classCourse: z.string().optional(),
-  route: z.string().optional(),
   defaultVehicleId: z.string().optional(),
   contact: z.string().optional(),
   status: z.enum(["Active", "Inactive"]).optional(),

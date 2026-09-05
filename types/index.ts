@@ -123,6 +123,13 @@ export interface AuditLogRecord {
   newValue: string;
 }
 
+export interface NonWorkingDayRecord {
+  date: string;
+  reason: string;
+  markedBy: string;
+  markedAt: string;
+}
+
 // ============================================================================
 // DERIVED / COMPUTED VIEW-MODEL TYPES (never stored, always calculated)
 // ============================================================================
