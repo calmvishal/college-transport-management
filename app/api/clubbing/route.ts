@@ -29,9 +29,13 @@ export async function POST(req: Request) {
   const body = await req.json();
   const parsed = clubbingSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid request.", details: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid request.", details: parsed.error.flatten() },
+      { status: 400 },
+    );
   }
-  const { date, studentIds, toVehicleId, reason, allowCapacityOverride } = parsed.data;
+  const { date, studentIds, toVehicleId, reason, allowCapacityOverride } =
+    parsed.data;
 
   const [vehicles, students, existingOps] = await Promise.all([
     getAllVehicles(),
@@ -41,13 +45,17 @@ export async function POST(req: Request) {
 
   const destinationVehicle = vehicles.find((v) => v.vehicleId === toVehicleId);
   if (!destinationVehicle) {
-    return NextResponse.json({ error: "Destination vehicle not found." }, { status: 404 });
+    return NextResponse.json(
+      { error: "Destination vehicle not found." },
+      { status: 404 },
+    );
   }
 
   const currentOperationalCount = existingOps.filter(
-    (op) => op.operationalVehicleId === toVehicleId
+    (op) =>
+      op.operationalVehicleId === destinationVehicle.vehicleId ||
+      op.operationalVehicleId === destinationVehicle.vehicleNumber,
   ).length;
-
   const validationErrors = validateClubbingMove({
     studentIds,
     destinationVehicle,
@@ -55,15 +63,23 @@ export async function POST(req: Request) {
     allowCapacityOverride,
   });
   if (validationErrors.length > 0) {
-    return NextResponse.json({ error: validationErrors.join(" ") }, { status: 400 });
+    return NextResponse.json(
+      { error: validationErrors.join(" ") },
+      { status: 400 },
+    );
   }
 
-  const results: { studentId: string; success: boolean; message?: string }[] = [];
+  const results: { studentId: string; success: boolean; message?: string }[] =
+    [];
 
   for (const studentId of studentIds) {
     const student = students.find((s) => s.studentId === studentId);
     if (!student) {
-      results.push({ studentId, success: false, message: "Student not found." });
+      results.push({
+        studentId,
+        success: false,
+        message: "Student not found.",
+      });
       continue;
     }
 
@@ -77,7 +93,10 @@ export async function POST(req: Request) {
       continue;
     }
 
-    if (dailyOp.operationalVehicleId === toVehicleId) {
+    if (
+      dailyOp.operationalVehicleId === toVehicleId ||
+      dailyOp.operationalVehicleId === destinationVehicle.vehicleNumber
+    ) {
       results.push({
         studentId,
         success: false,
@@ -93,11 +112,15 @@ export async function POST(req: Request) {
       studentId,
       toVehicleId,
       session.user.name || session.user.id,
-      reason
+      reason,
     );
 
     if (!updated) {
-      results.push({ studentId, success: false, message: "Failed to update operational vehicle." });
+      results.push({
+        studentId,
+        success: false,
+        message: "Failed to update operational vehicle.",
+      });
       continue;
     }
 

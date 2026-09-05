@@ -27,14 +27,24 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const date = searchParams.get("date") || todayKey();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    return NextResponse.json({ error: "date must be yyyy-MM-dd." }, { status: 400 });
+    return NextResponse.json(
+      { error: "date must be yyyy-MM-dd." },
+      { status: 400 },
+    );
   }
 
-  const [bundle, holiday] = await Promise.all([getDailyDashboardBundle(), getNonWorkingDay(date)]);
+  const [bundle, holiday] = await Promise.all([
+    getDailyDashboardBundle(),
+    getNonWorkingDay(date),
+  ]);
 
   // Scope to the incharge's authorized route.
-  const vehicles = bundle.vehicles.filter((v) => v.route === session.user.route);
-  const students = bundle.students.filter((s) => s.route === session.user.route);
+  const vehicles = bundle.vehicles.filter(
+    (v) => v.route === session.user.route,
+  );
+  const students = bundle.students.filter(
+    (s) => s.route === session.user.route,
+  );
   const bookings = bundle.bookings.filter((b) => b.travelDate === date);
   const dailyOps = bundle.dailyOps.filter((o) => o.date === date);
   const vehicleStatuses = bundle.vehicleStatuses.filter((v) => v.date === date);
@@ -57,9 +67,14 @@ export async function GET(req: Request) {
     dailyOps,
     vehicleSentMap,
     attendance,
+    vehicles,
   });
 
-  const vehicleViews = buildVehicleDailyViews({ vehicles, studentViews, vehicleSentMap });
+  const vehicleViews = buildVehicleDailyViews({
+    vehicles,
+    studentViews,
+    vehicleSentMap,
+  });
 
   const summary = buildDailyDashboardSummary({
     date,
@@ -76,4 +91,3 @@ export async function GET(req: Request) {
     holiday: holiday ? holiday.reason : null,
   });
 }
-

@@ -33,7 +33,7 @@ import type {
 export function resolveOperationalVehicle(
   studentId: string,
   booking: BookingRecord | null,
-  dailyOp: DailyOperationRecord | null
+  dailyOp: DailyOperationRecord | null,
 ): string | null {
   if (dailyOp) return dailyOp.operationalVehicleId;
   if (booking) return booking.defaultVehicleId;
@@ -70,13 +70,26 @@ export function deriveAttendanceStatus(params: {
 
 /** Builds the vehicle-sent lookup map for a date: vehicleId -> sent boolean. */
 export function buildVehicleSentMap(
-  statuses: VehicleDailyStatusRecord[]
+  statuses: VehicleDailyStatusRecord[],
 ): Map<string, boolean> {
   const map = new Map<string, boolean>();
   for (const s of statuses) {
     map.set(s.vehicleId, s.status === "Sent");
   }
   return map;
+}
+
+function resolveVehicleId(
+  vehicleRef: string | null | undefined,
+  vehicles: VehicleRecord[],
+): string | null {
+  if (!vehicleRef) return null;
+
+  const vehicle = vehicles.find(
+    (v) => v.vehicleId === vehicleRef || v.vehicleNumber === vehicleRef,
+  );
+
+  return vehicle?.vehicleId ?? null;
 }
 
 /** Builds a per-student view for a specific date, combining bookings,
@@ -92,8 +105,10 @@ export function buildStudentDailyViews(params: {
   dailyOps: DailyOperationRecord[];
   vehicleSentMap: Map<string, boolean>;
   attendance: AttendanceRecord[];
+  vehicles: VehicleRecord[];
 }): StudentDailyView[] {
-  const { students, bookings, dailyOps, vehicleSentMap, attendance } = params;
+  const { students, bookings, dailyOps, vehicleSentMap, attendance, vehicles } =
+    params;
 
   const bookingByStudent = new Map(bookings.map((b) => [b.studentId, b]));
   const opByStudent = new Map(dailyOps.map((o) => [o.studentId, o]));
@@ -106,12 +121,26 @@ export function buildStudentDailyViews(params: {
     if (!booking) continue; // only students who booked appear in the daily view
 
     const dailyOp = opByStudent.get(student.studentId) || null;
-    const operationalVehicleId = resolveOperationalVehicle(student.studentId, booking, dailyOp);
-    const vehicleSent = operationalVehicleId ? vehicleSentMap.get(operationalVehicleId) ?? null : null;
 
-    const existingAttendance = attendanceByStudent.get(student.studentId) || null;
+    const operationalVehicleRef = resolveOperationalVehicle(
+      student.studentId,
+      booking,
+      dailyOp,
+    );
+
+    const operationalVehicleId = resolveVehicleId(
+      operationalVehicleRef,
+      vehicles,
+    );
+    const vehicleSent = operationalVehicleId
+      ? (vehicleSentMap.get(operationalVehicleId) ?? null)
+      : null;
+
+    const existingAttendance =
+      attendanceByStudent.get(student.studentId) || null;
     const driverMarkedPresent =
-      existingAttendance && existingAttendance.status !== "Absent - Vehicle Not Sent"
+      existingAttendance &&
+      existingAttendance.status !== "Absent - Vehicle Not Sent"
         ? existingAttendance.status === "Present"
         : null;
 
@@ -124,7 +153,9 @@ export function buildStudentDailyViews(params: {
     views.push({
       studentId: student.studentId,
       studentName: student.name,
-      defaultVehicleId: booking.defaultVehicleId,
+      defaultVehicleId:
+        resolveVehicleId(student.defaultVehicleId, vehicles) ??
+        student.defaultVehicleId,
       operationalVehicleId,
       booked: true,
       attendance: attendanceStatus,
@@ -144,13 +175,24 @@ export function buildVehicleDailyViews(params: {
   const { vehicles, studentViews, vehicleSentMap } = params;
 
   return vehicles.map((vehicle) => {
-    const bookedCount = studentViews.filter((s) => s.defaultVehicleId === vehicle.vehicleId).length;
+    const bookedCount = studentViews.filter(
+      (s) =>
+        s.defaultVehicleId === vehicle.vehicleId ||
+        s.defaultVehicleId === vehicle.vehicleNumber,
+    ).length;
+
     const operationalStudents = studentViews.filter(
-      (s) => s.operationalVehicleId === vehicle.vehicleId
+      (s) =>
+        s.operationalVehicleId === vehicle.vehicleId ||
+        s.operationalVehicleId === vehicle.vehicleNumber,
     );
-    const present = operationalStudents.filter((s) => s.attendance === "Present").length;
+    const present = operationalStudents.filter(
+      (s) => s.attendance === "Present",
+    ).length;
     const absent = operationalStudents.filter(
-      (s) => s.attendance === "Absent - Student" || s.attendance === "Absent - Vehicle Not Sent"
+      (s) =>
+        s.attendance === "Absent - Student" ||
+        s.attendance === "Absent - Vehicle Not Sent",
     ).length;
 
     const sent = vehicleSentMap.get(vehicle.vehicleId);
@@ -179,17 +221,27 @@ export function buildDailyDashboardSummary(params: {
 }): DailyDashboardSummary {
   const { date, vehicles, vehicleSentMap, studentViews } = params;
 
-  const vehiclesSent = vehicles.filter((v) => vehicleSentMap.get(v.vehicleId) === true).length;
-  const vehiclesNotSent = vehicles.filter((v) => vehicleSentMap.get(v.vehicleId) === false).length;
+  const vehiclesSent = vehicles.filter(
+    (v) => vehicleSentMap.get(v.vehicleId) === true,
+  ).length;
+  const vehiclesNotSent = vehicles.filter(
+    (v) => vehicleSentMap.get(v.vehicleId) === false,
+  ).length;
 
   const studentsBooked = studentViews.length;
-  const studentsPresent = studentViews.filter((s) => s.attendance === "Present").length;
-  const studentsAbsentStudent = studentViews.filter((s) => s.attendance === "Absent - Student").length;
+  const studentsPresent = studentViews.filter(
+    (s) => s.attendance === "Present",
+  ).length;
+  const studentsAbsentStudent = studentViews.filter(
+    (s) => s.attendance === "Absent - Student",
+  ).length;
   const studentsAbsentVehicleNotSent = studentViews.filter(
-    (s) => s.attendance === "Absent - Vehicle Not Sent"
+    (s) => s.attendance === "Absent - Vehicle Not Sent",
   ).length;
   const clubbedStudents = studentViews.filter(
-    (s) => s.operationalVehicleId !== null && s.operationalVehicleId !== s.defaultVehicleId
+    (s) =>
+      s.operationalVehicleId !== null &&
+      s.operationalVehicleId !== s.defaultVehicleId,
   ).length;
 
   return {
@@ -213,19 +265,26 @@ export function validateClubbingMove(params: {
   currentOperationalCountOnDestination: number;
   allowCapacityOverride: boolean;
 }): string[] {
-  const { studentIds, destinationVehicle, currentOperationalCountOnDestination, allowCapacityOverride } =
-    params;
+  const {
+    studentIds,
+    destinationVehicle,
+    currentOperationalCountOnDestination,
+    allowCapacityOverride,
+  } = params;
   const errors: string[] = [];
 
   if (destinationVehicle.status !== "Active") {
-    errors.push(`${destinationVehicle.vehicleNumber} is inactive and cannot receive students.`);
+    errors.push(
+      `${destinationVehicle.vehicleNumber} is inactive and cannot receive students.`,
+    );
   }
 
-  const projectedCount = currentOperationalCountOnDestination + studentIds.length;
+  const projectedCount =
+    currentOperationalCountOnDestination + studentIds.length;
   if (projectedCount > destinationVehicle.capacity && !allowCapacityOverride) {
     errors.push(
       `Moving ${studentIds.length} student(s) would put ${destinationVehicle.vehicleNumber} at ` +
-        `${projectedCount}/${destinationVehicle.capacity}, over capacity. Enable capacity override to proceed anyway.`
+        `${projectedCount}/${destinationVehicle.capacity}, over capacity. Enable capacity override to proceed anyway.`,
     );
   }
 

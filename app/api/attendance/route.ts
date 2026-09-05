@@ -8,8 +8,12 @@ import {
   getDailyOperationsForDate,
   getVehicleStatusForDate,
   upsertAttendance,
+  getAllVehicles,
 } from "@/lib/repository";
-import { buildStudentDailyViews, buildVehicleSentMap } from "@/lib/transportLogic";
+import {
+  buildStudentDailyViews,
+  buildVehicleSentMap,
+} from "@/lib/transportLogic";
 
 /** GET /api/attendance?date=yyyy-MM-dd — the driver's final roster for
  * their assigned vehicle: every student whose OPERATIONAL vehicle (post-
@@ -23,21 +27,29 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const date = searchParams.get("date");
   if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-    return NextResponse.json({ error: "A valid ?date=yyyy-MM-dd is required." }, { status: 400 });
+    return NextResponse.json(
+      { error: "A valid ?date=yyyy-MM-dd is required." },
+      { status: 400 },
+    );
   }
 
   const vehicleId = session.user.vehicleId;
   if (!vehicleId) {
-    return NextResponse.json({ error: "This driver has no assigned vehicle." }, { status: 400 });
+    return NextResponse.json(
+      { error: "This driver has no assigned vehicle." },
+      { status: 400 },
+    );
   }
 
-  const [students, bookings, dailyOps, vehicleStatuses, attendance] = await Promise.all([
-    getAllStudents(),
-    getBookingsForDate(date),
-    getDailyOperationsForDate(date),
-    getVehicleStatusForDate(date),
-    getAttendanceForDate(date),
-  ]);
+  const [students, bookings, dailyOps, vehicleStatuses, attendance, vehicles] =
+    await Promise.all([
+      getAllStudents(),
+      getBookingsForDate(date),
+      getDailyOperationsForDate(date),
+      getVehicleStatusForDate(date),
+      getAttendanceForDate(date),
+      getAllVehicles(),
+    ]);
 
   const vehicleSentMap = buildVehicleSentMap(vehicleStatuses);
   const allViews = buildStudentDailyViews({
@@ -47,6 +59,7 @@ export async function GET(req: Request) {
     dailyOps,
     vehicleSentMap,
     attendance,
+    vehicles,
   });
 
   const roster = allViews.filter((v) => v.operationalVehicleId === vehicleId);
@@ -68,7 +81,7 @@ const submitSchema = z.object({
         studentId: z.string(),
         present: z.boolean(),
         absenceReason: z.string().optional().default(""),
-      })
+      }),
     )
     .min(1),
 });
@@ -86,7 +99,10 @@ export async function POST(req: Request) {
   const body = await req.json();
   const parsed = submitSchema.safeParse(body);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid request.", details: parsed.error.flatten() }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid request.", details: parsed.error.flatten() },
+      { status: 400 },
+    );
   }
   const { date, marks } = parsed.data;
   const vehicleId = session.user.vehicleId;
@@ -105,7 +121,7 @@ export async function POST(req: Request) {
           "This vehicle is marked Not Sent for this date. All scheduled students are automatically " +
           "Absent - Vehicle Not Sent; no manual attendance is needed.",
       },
-      { status: 409 }
+      { status: 409 },
     );
   }
 
