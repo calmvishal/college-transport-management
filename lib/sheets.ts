@@ -63,48 +63,22 @@ export const SHEET = {
 export type SheetName = (typeof SHEET)[keyof typeof SHEET];
 
 /**
- * ---------------------------------------------------------------------
- * IN-MEMORY READ CACHE
- * ---------------------------------------------------------------------
- * Every dashboard load triggers several full-sheet reads (Students,
- * Vehicles, Bookings, DailyOperations, VehicleDailyStatus, Attendance).
- * Google Sheets is not a real database — each read is a network round
- * trip that gets slower as sheets grow. This cache holds each sheet's
- * rows in memory for a short TTL so repeated reads within that window
- * (multiple widgets on one dashboard, quick tab-switching, etc.) don't
- * re-fetch from Google every single time.
- *
- * Any write (append/update) to a sheet immediately invalidates that
- * sheet's cache entry, so nobody ever sees stale data after an action
- * they just performed. The tradeoff only applies to concurrent *other*
- * readers within the TTL window — an acceptable staleness window for a
- * planning tool like this, not a payments system.
- *
- * NOTE: on serverless platforms (Vercel), each function instance has its
- * own memory, so this cache is per-instance, not shared globally. It
- * still meaningfully cuts down repeated reads within a single request's
- * lifetime and across quick successive requests hitting a warm instance.
+ * NOTE ON CACHING: an earlier version of this file cached sheet reads in
+ * memory for a short TTL to cut down repeated Google API calls. That was
+ * removed — on Vercel, each request can land on a different serverless
+ * function instance, each with its OWN separate memory. A write on one
+ * instance had no way to invalidate the cache sitting in a different warm
+ * instance, so other requests kept serving stale data for up to the TTL
+ * window. In practice this caused real bugs: double bookings (a stale
+ * "not yet booked" read let a second booking slip through), clubbing
+ * failing (a stale read couldn't find the booking it needed to update),
+ * and dashboards not reflecting just-made changes. Every read below now
+ * always goes straight to the Google Sheets API — correctness over a
+ * speed optimization that doesn't actually work safely on this platform.
+ * batchReadSheets() below still meaningfully helps performance by
+ * combining several sheet reads into one network round trip; that part
+ * is safe to keep since it doesn't cache anything across requests.
  */
-const CACHE_TTL_MS = 15_000;
-const sheetCache = new Map<string, { data: Record<string, string>[]; expiresAt: number }>();
-
-function getCached(sheetName: string): Record<string, string>[] | null {
-  const entry = sheetCache.get(sheetName);
-  if (!entry) return null;
-  if (Date.now() > entry.expiresAt) {
-    sheetCache.delete(sheetName);
-    return null;
-  }
-  return entry.data;
-}
-
-function setCached(sheetName: string, data: Record<string, string>[]): void {
-  sheetCache.set(sheetName, { data, expiresAt: Date.now() + CACHE_TTL_MS });
-}
-
-function invalidateCache(sheetName: string): void {
-  sheetCache.delete(sheetName);
-}
 
 function parseRows(rows: string[][]): Record<string, string>[] {
   if (rows.length === 0) return [];
@@ -121,62 +95,42 @@ function parseRows(rows: string[][]): Record<string, string>[] {
 }
 
 /** Reads all rows of a sheet (row 1 = headers) and returns them as an
- * array of objects keyed by header text. Served from the in-memory cache
- * when fresh; falls through to the Sheets API and repopulates it otherwise. */
+ * array of objects keyed by header text. Always fetches fresh from the
+ * Google Sheets API — see the note above on why this is not cached. */
 export async function readSheet(sheetName: SheetName): Promise<Record<string, string>[]> {
-  const cached = getCached(sheetName);
-  if (cached) return cached;
-
   const client = getClient();
   const res = await client.spreadsheets.values.get({
     spreadsheetId: SPREADSHEET_ID,
     range: `${sheetName}!A1:ZZ`,
   });
-  const parsed = parseRows(res.data.values || []);
-  setCached(sheetName, parsed);
-  return parsed;
+  return parseRows(res.data.values || []);
 }
 
 /**
  * Reads MULTIPLE sheets in a single Google API call instead of one call
  * per sheet. This is the main latency win for pages like the daily
- * dashboard and monthly report, which previously fired off 5-6 separate
- * HTTP requests to Google (one per sheet) even though they ran in
- * parallel via Promise.all — each one still paid its own network/auth
- * overhead. batchGet collapses all of them into one round trip.
- *
- * Sheets already warm in the cache are served from memory and excluded
- * from the batch request; only the missing ones are actually fetched.
+ * dashboard and monthly report, which would otherwise fire off 5-6
+ * separate HTTP requests to Google (one per sheet) even when run in
+ * parallel via Promise.all — each one still pays its own network/auth
+ * overhead. batchGet collapses all of them into one round trip. Unlike
+ * the old version of this function, results are never cached, so every
+ * call reflects the current sheet state exactly.
  */
 export async function batchReadSheets<T extends SheetName>(
   sheetNames: T[]
 ): Promise<Record<T, Record<string, string>[]>> {
   const result = {} as Record<T, Record<string, string>[]>;
-  const toFetch: T[] = [];
 
-  for (const name of sheetNames) {
-    const cached = getCached(name);
-    if (cached) {
-      result[name] = cached;
-    } else {
-      toFetch.push(name);
-    }
-  }
+  const client = getClient();
+  const res = await client.spreadsheets.values.batchGet({
+    spreadsheetId: SPREADSHEET_ID,
+    ranges: sheetNames.map((name) => `${name}!A1:ZZ`),
+  });
 
-  if (toFetch.length > 0) {
-    const client = getClient();
-    const res = await client.spreadsheets.values.batchGet({
-      spreadsheetId: SPREADSHEET_ID,
-      ranges: toFetch.map((name) => `${name}!A1:ZZ`),
-    });
-
-    (res.data.valueRanges || []).forEach((range, i) => {
-      const name = toFetch[i];
-      const parsed = parseRows(range.values || []);
-      setCached(name, parsed);
-      result[name] = parsed;
-    });
-  }
+  (res.data.valueRanges || []).forEach((range, i) => {
+    const name = sheetNames[i];
+    result[name] = parseRows(range.values || []);
+  });
 
   return result;
 }
@@ -193,7 +147,6 @@ export async function appendRow(sheetName: SheetName, values: (string | number)[
     insertDataOption: "INSERT_ROWS",
     requestBody: { values: [values] },
   });
-  invalidateCache(sheetName);
 }
 
 /** Appends multiple rows in a single API call (avoids rate-limit issues
@@ -208,7 +161,6 @@ export async function appendRows(sheetName: SheetName, rows: (string | number)[]
     insertDataOption: "INSERT_ROWS",
     requestBody: { values: rows },
   });
-  invalidateCache(sheetName);
 }
 
 /** Finds the 1-indexed spreadsheet row number of the first row whose
@@ -268,7 +220,6 @@ export async function updateRowByKey(
     valueInputOption: "USER_ENTERED",
     requestBody: { values: [newRow] },
   });
-  invalidateCache(sheetName);
   return true;
 }
 
@@ -309,7 +260,6 @@ export async function updateRowByCompositeKey(
         valueInputOption: "USER_ENTERED",
         requestBody: { values: [newRow] },
       });
-      invalidateCache(sheetName);
       return true;
     }
   }
@@ -383,7 +333,6 @@ export async function deleteRowByKey(
           ],
         },
       });
-      invalidateCache(sheetName);
       return true;
     }
   }

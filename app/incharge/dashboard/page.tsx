@@ -58,6 +58,7 @@ export default function IncharageDailyDashboard() {
   const [loading, setLoading] = useState(true);
   const [showStudents, setShowStudents] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
+  const [holiday, setHoliday] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -67,6 +68,7 @@ export default function IncharageDailyDashboard() {
       setSummary(data.summary);
       setVehicles(data.vehicles);
       setStudents(data.students);
+      setHoliday(data.holiday || null);
     }
     setLoading(false);
   }, [date]);
@@ -122,6 +124,13 @@ export default function IncharageDailyDashboard() {
           </div>
         )}
 
+        {holiday && (
+          <div className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            {date} is marked a non-working day ({holiday}). All vehicles are automatically shown as
+            Not Sent, and students could not book for this date.
+          </div>
+        )}
+
         {loading || !summary ? (
           <div className="card mt-6 animate-pulse text-slate-400">Loading…</div>
         ) : (
@@ -171,14 +180,14 @@ export default function IncharageDailyDashboard() {
                           <div className="flex gap-1">
                             <button
                               className="btn-secondary px-2 py-1 text-xs"
-                              disabled={statusUpdating === v.vehicleId || isPastDate(date)}
+                              disabled={statusUpdating === v.vehicleId || isPastDate(date) || !!holiday}
                               onClick={() => markVehicleStatus(v.vehicleId, "Sent")}
                             >
                               Sent
                             </button>
                             <button
                               className="btn-secondary px-2 py-1 text-xs"
-                              disabled={statusUpdating === v.vehicleId || isPastDate(date)}
+                              disabled={statusUpdating === v.vehicleId || isPastDate(date) || !!holiday}
                               onClick={() => markVehicleStatus(v.vehicleId, "Not Sent")}
                             >
                               Not Sent
