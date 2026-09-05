@@ -85,21 +85,6 @@ export function buildVehicleSentMap(
  * resolution path used by the student dashboard, the incharge daily
  * dashboard, the driver attendance screen, and the monthly PDF — so all
  * four always agree. */
-function resolveVehicleId(
-  vehicleRef: string | null | undefined,
-  vehicles: VehicleRecord[]
-): string | null {
-  if (!vehicleRef) return null;
-
-  const vehicle = vehicles.find(
-    (v) =>
-      v.vehicleId === vehicleRef ||
-      v.vehicleNumber === vehicleRef
-  );
-
-  return vehicle?.vehicleId ?? null;
-}
-
 export function buildStudentDailyViews(params: {
   date: string;
   students: StudentRecord[];
@@ -107,9 +92,8 @@ export function buildStudentDailyViews(params: {
   dailyOps: DailyOperationRecord[];
   vehicleSentMap: Map<string, boolean>;
   attendance: AttendanceRecord[];
-  vehicles: VehicleRecord[];
 }): StudentDailyView[] {
-  const { students, bookings, dailyOps, vehicleSentMap, attendance , vehicles,} = params;
+  const { students, bookings, dailyOps, vehicleSentMap, attendance } = params;
 
   const bookingByStudent = new Map(bookings.map((b) => [b.studentId, b]));
   const opByStudent = new Map(dailyOps.map((o) => [o.studentId, o]));
@@ -122,16 +106,7 @@ export function buildStudentDailyViews(params: {
     if (!booking) continue; // only students who booked appear in the daily view
 
     const dailyOp = opByStudent.get(student.studentId) || null;
-    const operationalVehicleRef = resolveOperationalVehicle(
-  student.studentId,
-  booking,
-  dailyOp
-);
-
-const operationalVehicleId = resolveVehicleId(
-  operationalVehicleRef,
-  vehicles
-);
+    const operationalVehicleId = resolveOperationalVehicle(student.studentId, booking, dailyOp);
     const vehicleSent = operationalVehicleId ? vehicleSentMap.get(operationalVehicleId) ?? null : null;
 
     const existingAttendance = attendanceByStudent.get(student.studentId) || null;
@@ -149,8 +124,7 @@ const operationalVehicleId = resolveVehicleId(
     views.push({
       studentId: student.studentId,
       studentName: student.name,
-      defaultVehicleId: resolveVehicleId(student.defaultVehicleId, vehicles) ??
-  student.defaultVehicleId,
+      defaultVehicleId: student.defaultVehicleId,
       operationalVehicleId,
       booked: true,
       attendance: attendanceStatus,
@@ -170,36 +144,18 @@ export function buildVehicleDailyViews(params: {
   const { vehicles, studentViews, vehicleSentMap } = params;
 
   return vehicles.map((vehicle) => {
-    const bookedCount = studentViews.filter(
-      (s) =>
-        s.defaultVehicleId === vehicle.vehicleId ||
-        s.defaultVehicleId === vehicle.vehicleNumber
-    ).length;
-
+    const bookedCount = studentViews.filter((s) => s.defaultVehicleId === vehicle.vehicleId).length;
     const operationalStudents = studentViews.filter(
-      (s) =>
-        s.operationalVehicleId === vehicle.vehicleId ||
-        s.operationalVehicleId === vehicle.vehicleNumber
+      (s) => s.operationalVehicleId === vehicle.vehicleId
     );
-
-    const present = operationalStudents.filter(
-      (s) => s.attendance === "Present"
-    ).length;
-
+    const present = operationalStudents.filter((s) => s.attendance === "Present").length;
     const absent = operationalStudents.filter(
-      (s) =>
-        s.attendance === "Absent - Student" ||
-        s.attendance === "Absent - Vehicle Not Sent"
+      (s) => s.attendance === "Absent - Student" || s.attendance === "Absent - Vehicle Not Sent"
     ).length;
 
     const sent = vehicleSentMap.get(vehicle.vehicleId);
-
     const status: VehicleDailyView["status"] =
-      sent === true
-        ? "Sent"
-        : sent === false
-          ? "Not Sent"
-          : "Unmarked";
+      sent === true ? "Sent" : sent === false ? "Not Sent" : "Unmarked";
 
     return {
       vehicleId: vehicle.vehicleId,
