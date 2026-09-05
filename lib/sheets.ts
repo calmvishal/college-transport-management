@@ -137,13 +137,25 @@ export async function batchReadSheets<T extends SheetName>(
 
 
 /** Appends a single row to the end of a sheet. `values` must be in the
- * exact column order the sheet was created with. */
+ * exact column order the sheet was created with.
+ *
+ * IMPORTANT: uses valueInputOption "RAW", not "USER_ENTERED". With
+ * USER_ENTERED, Google Sheets tries to be "smart" and auto-detects things
+ * that look like dates/numbers, silently converting a date string like
+ * "2026-09-06" into its internal date serial number (e.g. 46271) or a
+ * locale-formatted date, depending on the column's existing format. Since
+ * every date/status comparison in this app is an exact string match
+ * against the yyyy-MM-dd we wrote, that silent conversion breaks bookings,
+ * clubbing, attendance, and dashboards in ways that are very hard to spot
+ * (some rows look fine, others show a raw number). RAW stores exactly the
+ * string we send, every time, with no reinterpretation — never change
+ * this back to USER_ENTERED. */
 export async function appendRow(sheetName: SheetName, values: (string | number)[]): Promise<void> {
   const client = getClient();
   await client.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
     range: `${sheetName}!A1`,
-    valueInputOption: "USER_ENTERED",
+    valueInputOption: "RAW",
     insertDataOption: "INSERT_ROWS",
     requestBody: { values: [values] },
   });
@@ -157,7 +169,7 @@ export async function appendRows(sheetName: SheetName, rows: (string | number)[]
   await client.spreadsheets.values.append({
     spreadsheetId: SPREADSHEET_ID,
     range: `${sheetName}!A1`,
-    valueInputOption: "USER_ENTERED",
+    valueInputOption: "RAW",
     insertDataOption: "INSERT_ROWS",
     requestBody: { values: rows },
   });
@@ -217,7 +229,7 @@ export async function updateRowByKey(
   await client.spreadsheets.values.update({
     spreadsheetId: SPREADSHEET_ID,
     range: `${sheetName}!A${rowNumber}:${columnLetter(headers.length)}${rowNumber}`,
-    valueInputOption: "USER_ENTERED",
+    valueInputOption: "RAW",
     requestBody: { values: [newRow] },
   });
   return true;
@@ -257,7 +269,7 @@ export async function updateRowByCompositeKey(
       await client.spreadsheets.values.update({
         spreadsheetId: SPREADSHEET_ID,
         range: `${sheetName}!A${i + 1}:${columnLetter(headers.length)}${i + 1}`,
-        valueInputOption: "USER_ENTERED",
+        valueInputOption: "RAW",
         requestBody: { values: [newRow] },
       });
       return true;

@@ -5,7 +5,7 @@ import NavBar from "@/components/NavBar";
 import DateNav from "@/components/DateNav";
 import StatusBadge from "@/components/StatusBadge";
 import { useToast } from "@/components/ToastProvider";
-import { todayKey, isPastDate } from "@/lib/dateUtils";
+import { todayKey, isPastDate, nextBookableDateKey } from "@/lib/dateUtils";
 
 interface VehicleView {
   vehicleId: string;
@@ -115,6 +115,25 @@ export default function IncharageDailyDashboard() {
 
         <div className="mt-4">
           <DateNav date={date} onChange={setDate} />
+        </div>
+
+        <div className="mt-2 flex justify-center gap-2">
+          <button
+            className={`rounded-full px-3 py-1 text-xs font-medium ${
+              date === todayKey() ? "bg-brand-500 text-white" : "bg-slate-100 text-slate-600"
+            }`}
+            onClick={() => setDate(todayKey())}
+          >
+            Today
+          </button>
+          <button
+            className={`rounded-full px-3 py-1 text-xs font-medium ${
+              date === nextBookableDateKey() ? "bg-brand-500 text-white" : "bg-slate-100 text-slate-600"
+            }`}
+            onClick={() => setDate(nextBookableDateKey())}
+          >
+            Tomorrow (bookable day)
+          </button>
         </div>
 
         {isPastDate(date) && (
