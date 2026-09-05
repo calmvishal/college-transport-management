@@ -8,7 +8,6 @@ import {
   getDailyOperationsForDate,
   getVehicleStatusForDate,
   upsertAttendance,
-  getAllVehicles,
 } from "@/lib/repository";
 import { buildStudentDailyViews, buildVehicleSentMap } from "@/lib/transportLogic";
 
@@ -32,32 +31,23 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "This driver has no assigned vehicle." }, { status: 400 });
   }
 
-  const [
-  students,
-  bookings,
-  dailyOps,
-  vehicleStatuses,
-  attendance,
-  vehicles,
-] = await Promise.all([
-  getAllStudents(),
-  getBookingsForDate(date),
-  getDailyOperationsForDate(date),
-  getVehicleStatusForDate(date),
-  getAttendanceForDate(date),
-  getAllVehicles(),
-]);
+  const [students, bookings, dailyOps, vehicleStatuses, attendance] = await Promise.all([
+    getAllStudents(),
+    getBookingsForDate(date),
+    getDailyOperationsForDate(date),
+    getVehicleStatusForDate(date),
+    getAttendanceForDate(date),
+  ]);
 
   const vehicleSentMap = buildVehicleSentMap(vehicleStatuses);
   const allViews = buildStudentDailyViews({
-  date,
-  students,
-  bookings,
-  dailyOps,
-  vehicleSentMap,
-  attendance,
-  vehicles,
-});
+    date,
+    students,
+    bookings,
+    dailyOps,
+    vehicleSentMap,
+    attendance,
+  });
 
   const roster = allViews.filter((v) => v.operationalVehicleId === vehicleId);
   const vehicleSent = vehicleSentMap.get(vehicleId) ?? null;

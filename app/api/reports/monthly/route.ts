@@ -77,7 +77,6 @@ export async function GET(req: Request) {
   dailyOps,
   vehicleSentMap,
   attendance,
-  vehicles,
 });
   
 
