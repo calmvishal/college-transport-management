@@ -124,7 +124,7 @@ export function buildStudentDailyViews(params: {
     views.push({
       studentId: student.studentId,
       studentName: student.name,
-      defaultVehicleId: student.defaultVehicleId,
+      defaultVehicleId: booking.defaultVehicleId,
       operationalVehicleId,
       booked: true,
       attendance: attendanceStatus,
